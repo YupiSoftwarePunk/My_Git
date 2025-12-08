@@ -2,6 +2,9 @@
 #define ENCRYPTION_HPP
 
 #include <string>
+#include <sstream>
+#include <iomanip>
+#include <openssl/sha.h>
 
 
 class Encryption
