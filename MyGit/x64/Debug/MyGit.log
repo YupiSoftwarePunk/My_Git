@@ -1,11 +1,15 @@
-﻿  GitObject.cpp
-  Blob.cpp
+﻿  GitCommands.cpp
+  GitObject.cpp
 C:\Users\Denis\Documents\projects C++\MyGit\MyGit\include\Encryption.hpp(7,10): error C1083: Не удается открыть файл включение: openssl/sha.h: No such file or directory,
   (компиляция исходного файла "src/GitObject.cpp")
   
+  Blob.cpp
   Encryption.cpp
 C:\Users\Denis\Documents\projects C++\MyGit\MyGit\include\Encryption.hpp(7,10): error C1083: Не удается открыть файл включение: openssl/sha.h: No such file or directory,
   (компиляция исходного файла "src/Encryption.cpp")
   
   main.cpp
+C:\Users\Denis\Documents\projects C++\MyGit\MyGit\include\Encryption.hpp(7,10): error C1083: Не удается открыть файл включение: openssl/sha.h: No such file or directory,
+  (компиляция исходного файла "src/main.cpp")
+  
   Создание кода...
