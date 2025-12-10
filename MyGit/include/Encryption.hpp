@@ -14,6 +14,8 @@ public:
     std::string compressData(const std::string& data);
     std::string decompressData(const std::string& compressed);
 
+private:
+    static std::string toHex(const unsigned char* data, size_t length);
 };
 
 #endif

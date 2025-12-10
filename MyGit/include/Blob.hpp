@@ -4,7 +4,7 @@
 #include <string>
 #include "GitObject.hpp"
 
-class Blob : GitObject
+class Blob : public GitObject
 {
 public:
     explicit Blob(const std::string& content = "") : content_(content) {}
