@@ -1,0 +1,17 @@
+{
+  "version": 4,
+  "configurePresets": [
+    {
+      "name": "MyGit", 
+      "generator": "Visual Studio 17 2022",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "C:/Users/Denis/vcpkg/vcpkg/scripts/buildsystems/vcpkg.cmake"
+      },
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      }
+    }
+  ]
+}
