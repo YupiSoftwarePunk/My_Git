@@ -10,9 +10,9 @@
 class Encryption
 {
 public:
-    std::string calculateSHA1(const std::string& content);
-    std::string compressData(const std::string& data);
-    std::string decompressData(const std::string& compressed);
+    static std::string calculateSHA1(const std::string& content);
+    static std::string compressData(const std::string& data);
+    static std::string decompressData(const std::string& compressed);
 
 private:
     static std::string toHex(const unsigned char* data, size_t length);

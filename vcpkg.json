@@ -1,0 +1,7 @@
+{
+  "name": "mygit",
+  "version": "0.1.0",
+  "dependencies": [
+    "openssl"
+  ]
+}

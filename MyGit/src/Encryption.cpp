@@ -4,7 +4,7 @@
 std::string Encryption::calculateSHA1(const std::string& content)
 {
     unsigned char hash[SHA_DIGEST_LENGTH];
-    std::SHA1(reinterpret_cast<const unsigned char*>(content.c_str()), content.size(), hash);
+    SHA1(reinterpret_cast<const unsigned char*>(content.c_str()), content.size(), hash);
 
     return toHex(hash, SHA_DIGEST_LENGTH);
 }

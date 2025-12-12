@@ -4,5 +4,5 @@
 
 std::string GitObject::getHash() const
 {
-    return Encryption::calculateSHA1(serialize());
+	return Encryption::calculateSHA1(this->serialize());
 }
