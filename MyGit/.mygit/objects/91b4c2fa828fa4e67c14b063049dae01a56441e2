@@ -1,0 +1,4 @@
+type=commit
+author=Denis
+message=-m "init"
+parent=null

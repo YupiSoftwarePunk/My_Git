@@ -1,18 +1,22 @@
 ﻿#include "../include/GitCommands.hpp"
+#include "../include/Blob.hpp"
+#include "../include/Encryption.hpp"
 
 
 #include <filesystem>
 #include <iostream>
 #include <fstream>
 #include <sstream>
-#include "../include/Blob.hpp"
-#include "../include/Encryption.hpp"
+#include <unordered_set>
 
 
 namespace fs = std::filesystem;
 
-GitCommands::GitCommands(const std::string& repoPath)
-    : repoPath_(repoPath) { }
+GitCommands::GitCommands()
+{ 
+    workDir_ = fs::current_path().string();
+    repoPath_ = workDir_ + "/.mygit";
+}
 
 void GitCommands::runCommand(const std::string& commandLine)
 {
@@ -66,6 +70,13 @@ void GitCommands::runCommand(const std::string& commandLine)
     {
         log(); 
     }
+    else if (cmd == "cd")
+    {
+        std::string path;
+        std::getline(iss, path);
+        if (!path.empty() && path[0] == ' ') path.erase(0, 1);
+        cd(path);
+    }
     else if (cmd == "help")
     {
         help();
@@ -88,7 +99,6 @@ void GitCommands::config(const std::string& username)
     username_ = username;
     std::cout << "Пользователь установлен: " << username_ << std::endl;
 
-    // сохраняем в config файл
     fs::create_directories(repoPath_);
     std::ofstream configFile(repoPath_ + "/config.txt");
     configFile << "user=" << username_ << std::endl;
@@ -100,7 +110,8 @@ void GitCommands::init()
 {
     fs::create_directories(repoPath_ + "/objects");
 
-    std::ofstream head(repoPath_ + "/HEAD"); head << "null";
+    std::ofstream head(repoPath_ + "/HEAD"); 
+    head << "null";
 
     std::cout << "Инициализировано хранилище в " << repoPath_ << std::endl;
 }
@@ -178,24 +189,23 @@ void GitCommands::add(const std::string& filename)
 {
     if (filename == ".")
     {
-        for (const auto& entry : fs::recursive_directory_iterator("."))
+        for (const auto& entry : fs::recursive_directory_iterator(workDir_))
         {
             if (entry.is_regular_file())
             {
-                std::string path = entry.path().string();
+                std::string absPath = entry.path().string();
 
-                if (path.rfind(repoPath_, 0) == 0)
+                if (absPath.rfind(repoPath_, 0) == 0)
                 {
                     continue;
                 }
 
-                add(path);
+                addFile(absPath);
             }
         }
         return;
     }
 
-    // Если это папка — рекурсивно добавляем всё внутри
     if (fs::is_directory(filename))
     {
         for (const auto& entry : fs::recursive_directory_iterator(filename))
@@ -226,44 +236,57 @@ void GitCommands::add(const std::string& filename)
     out << blob.serialize();
     out.close();
 
-    std::cout << "Добавлен blob: " << filename << " → " << hash << std::endl;
+    std::cout << "Добавлен blob: " << filename << " -> " << hash << std::endl;
 }
 
 
 
 void GitCommands::status()
 {
-    std::ifstream config(repoPath_ + "/config.txt");
-    if (config) 
+    std::unordered_set<std::string> blobHashes;
+
+    if (fs::exists(repoPath_ + "/objects"))
     {
-        std::string line;
-        std::getline(config, line);
-        std::cout << "Пользователь: " << line << std::endl;
-    }
-    else 
-    {
-        std::cout << "Нет конфигурации пользователя.\n";
+        for (const auto& entry : fs::directory_iterator(repoPath_ + "/objects"))
+        {
+            if (entry.is_regular_file())
+            {
+                blobHashes.insert(entry.path().filename().string());
+            }
+        }
     }
 
-    std::ifstream head(repoPath_ + "/HEAD");
-    if (head)
+    for (const auto& entry : fs::recursive_directory_iterator(workDir_))
     {
-        std::string last;
-        std::getline(head, last);
-        std::cout << "HEAD → " << last << std::endl;
-    }
-    else 
-    {
-        std::cout << "HEAD отсутствует\n";
-    }
+        if (!entry.is_regular_file())
+        {
+            continue;
+        }
 
-    size_t count = 0;
-    for (const auto& entry : fs::directory_iterator(repoPath_ + "/objects"))
-    {
-        ++count;
-    }
+        std::string filePath = entry.path().string();
 
-    std::cout << "Объектов в хранилище: " << count << std::endl;
+        if (filePath.rfind(repoPath_, 0) == 0)
+        {
+            continue;
+        }
+
+        std::ifstream file(filePath, std::ios::binary);
+        std::string content((std::istreambuf_iterator<char>(file)),
+            std::istreambuf_iterator<char>());
+
+        Blob blob(content);
+        std::string serialized = blob.serialize();
+        std::string hash = Encryption::calculateSHA1(serialized);
+
+        if (blobHashes.contains(hash))
+        {
+            std::cout << "\033[32m[ADDED]   " << filePath << "\033[0m\n";
+        }
+        else
+        {
+            std::cout << "\033[31m[UNTRACKED] " << filePath << "\033[0m\n";
+        }
+    }
 }
 
 
@@ -314,6 +337,7 @@ void GitCommands::log()
 void GitCommands::help()
 {
     std::cout << "\t\tДоступные команды MyGit\n";
+    std::cout << "cd <path>             — перейти в директорию\n";
     std::cout << "config <username>     — установить имя пользователя\n";
     std::cout << "init                  — инициализировать репозиторий\n";
     std::cout << "add <file>            — добавить файл в blob\n";
@@ -326,4 +350,49 @@ void GitCommands::help()
     std::cout << "help                  — список команд\n";
     std::cout << "exit                  — выход из программы\n";
     std::cout << "Ctrl+C                - выход из программы\n";
+}
+
+
+
+void GitCommands::cd(const std::string& rawPath)
+{
+    std::string path = rawPath;
+
+    if (!path.empty() && path.front() == '"')
+    {
+        path.erase(0, 1);
+    }
+    if (!path.empty() && path.back() == '"')
+    {
+        path.pop_back();
+    }
+
+
+    if (!fs::exists(path) || !fs::is_directory(path))
+    {
+        std::cout << "Директория не найдена: " << path << std::endl;
+        return;
+    }
+
+    workDir_ = fs::absolute(path).string();
+    fs::current_path(workDir_);
+    repoPath_ = workDir_ + "/.mygit";
+
+    std::cout << "Текущая директория: " << workDir_ << std::endl;
+
+    if (fs::exists(repoPath_))
+    {
+        std::cout << "Репозиторий найден: " << repoPath_ << std::endl;
+    }
+    else
+    {
+        std::cout << "Репозиторий не найден. Используйте init для создания." << std::endl;
+    }
+}
+
+
+
+void GitCommands::addFile(const std::string& filename)
+{
+
 }

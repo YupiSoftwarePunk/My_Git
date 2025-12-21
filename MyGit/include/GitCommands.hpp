@@ -11,7 +11,7 @@
 class GitCommands
 {
 public:
-    explicit GitCommands(const std::string& repoPath = ".mygit");
+    explicit GitCommands();
 
     void runCommand(const std::string& commandLine);
 
@@ -24,10 +24,13 @@ public:
     void status();
     void log();
     void help();
+    void cd(const std::string& path);
+    void addFile(const std::string& filename);
 
 private:
     std::string repoPath_;
     std::string username_;
+    std::string workDir_;
 };
 
 #endif
