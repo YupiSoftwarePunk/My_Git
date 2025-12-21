@@ -1,7 +1,7 @@
 ﻿#include "../include/GitCommands.hpp"
 #include "../include/Blob.hpp"
 #include "../include/Encryption.hpp"
-
+#include "../include/Colours.hpp"
 
 #include <filesystem>
 #include <iostream>
@@ -97,7 +97,7 @@ void GitCommands::runCommand(const std::string& commandLine)
 void GitCommands::config(const std::string& username)
 {
     username_ = username;
-    std::cout << "Пользователь установлен: " << username_ << std::endl;
+    std::cout << Color::green << "Пользователь установлен: " << Color::cyan << username_ << Color::reset << std::endl;
 
     fs::create_directories(repoPath_);
     std::ofstream configFile(repoPath_ + "/config.txt");
@@ -113,7 +113,7 @@ void GitCommands::init()
     std::ofstream head(repoPath_ + "/HEAD"); 
     head << "null";
 
-    std::cout << "Инициализировано хранилище в " << repoPath_ << std::endl;
+    std::cout << Color::green <<"Инициализировано хранилище в " << Color::blue << repoPath_ << Color::reset << std::endl;
 }
 
 
@@ -122,7 +122,7 @@ void GitCommands::commit(const std::string& message)
 {
     if (username_.empty()) 
     {
-        std::cout << "Сначала выполните config <username>" << std::endl;
+        std::cout << Color::red << "Сначала выполните config <username>" << Color::reset << std::endl;
         return;
     }
 
@@ -154,7 +154,10 @@ void GitCommands::commit(const std::string& message)
     std::ofstream head(repoPath_ + "/HEAD");
     head << commitHash;
 
-    std::cout << "Создан коммит: " << commitHash << std::endl;
+    std::cout << Color::green << "Создан коммит: "
+        << Color::magenta << commitHash
+        << Color::reset << "\n";
+
 }
 
 
@@ -165,7 +168,7 @@ void GitCommands::checkout(const std::string& hash)
 
     if (!fs::exists(path)) 
     {
-        std::cout << "Коммит не найден: " << hash << std::endl;
+        std::cout << Color::red << "Коммит не найден: " << Color::magenta << hash << Color::reset << std::endl;
         return;
     }
 
@@ -184,7 +187,10 @@ void GitCommands::checkout(const std::string& hash)
     std::ofstream head(repoPath_ + "/HEAD");
     head << hash;
 
-    std::cout << "Переключено на коммит: " << hash << std::endl;
+    std::cout << Color::yellow << "Переключено на коммит: "
+        << Color::magenta << hash
+        << Color::reset << "\n";
+
 }
 
 
@@ -265,13 +271,15 @@ void GitCommands::status()
         std::string serialized = blob.serialize();
         std::string hash = Encryption::calculateSHA1(serialized);
 
+        std::string name = entry.path().filename().string();
+
         if (blobHashes.contains(hash))
         {
-            std::cout << "\033[32m[ADDED]   " << filePath << "\033[0m\n";
+            std::cout << Color::green << "[ADDED] " << Color::green << name << Color::reset << "\n";
         }
         else
         {
-            std::cout << "\033[31m[UNTRACKED] " << filePath << "\033[0m\n";
+            std::cout << Color::red << "[UNTRACKED] " << Color::red << name << Color::reset << "\n";
         }
     }
 }
@@ -283,7 +291,7 @@ void GitCommands::log()
     std::ifstream head(repoPath_ + "/HEAD");
     if (!head) 
     {
-        std::cout << "Нет HEAD файла" << std::endl;
+        std::cout << Color::red << "Нет HEAD файла" << Color::reset << "\n";
         return;
     }
 
@@ -292,7 +300,7 @@ void GitCommands::log()
 
     if (current == "null") 
     {
-        std::cout << "Нет коммитов" << std::endl;
+        std::cout << Color::yellow << "Нет коммитов" << Color::reset << "\n";
         return;
     }
 
@@ -312,7 +320,9 @@ void GitCommands::log()
         std::getline(in, message);
         std::getline(in, parent);
 
-        std::cout << current << "\n  " << author << "\n  " << message << "\n\n";
+        std::cout << Color::magenta << current << Color::reset << "\n";
+        std::cout << Color::cyan << " " << author << Color::reset << "\n";
+        std::cout << Color::white << " " << message << Color::reset << "\n\n";
 
         parent = parent.substr(parent.find('=') + 1);
         current = parent;
@@ -323,20 +333,20 @@ void GitCommands::log()
 
 void GitCommands::help()
 {
-    std::cout << "\t\tДоступные команды MyGit\n";
-    std::cout << "cd <path>             — перейти в директорию\n";
-    std::cout << "config <username>     — установить имя пользователя\n";
-    std::cout << "init                  — инициализировать репозиторий\n";
-    std::cout << "add <file>            — добавить файл в blob\n";
-    std::cout << "add .                 — добавить все файлы\n";
-    std::cout << "add --all             — добавить все файлы\n";
-    std::cout << "commit <message>      — создать коммит\n";
-    std::cout << "checkout <hash>       — переключиться на коммит\n";
-    std::cout << "status                — статус репозитория\n";
-    std::cout << "log                   — история коммитов\n";
-    std::cout << "help                  — список команд\n";
-    std::cout << "exit                  — выход из программы\n";
-    std::cout << "Ctrl+C                - выход из программы\n";
+    std::cout << Color::bold << "\t\tДоступные команды MyGit\n" << Color::reset;
+    std::cout << Color::cyan << "cd <path>             "<< Color::reset << "— перейти в директорию\n";
+    std::cout << Color::cyan << "config <username>     " << Color::reset << "— установить имя пользователя\n";
+    std::cout << Color::cyan << "init                  " << Color::reset << "— инициализировать репозиторий\n";
+    std::cout << Color::cyan << "add <file>            " << Color::reset << "— добавить файл в blob\n";
+    std::cout << Color::cyan << "add .                 " << Color::reset << "— добавить все файлы\n";
+    std::cout << Color::cyan << "add --all             " << Color::reset << "— добавить все файлы\n";
+    std::cout << Color::cyan << "commit <message>      " << Color::reset << "— создать коммит\n";
+    std::cout << Color::cyan << "checkout <hash>       " << Color::reset << "— переключиться на коммит\n";
+    std::cout << Color::cyan << "status                " << Color::reset << "— статус репозитория\n";
+    std::cout << Color::cyan << "log                   " << Color::reset << "— история коммитов\n";
+    std::cout << Color::cyan << "help                  " << Color::reset << "— список команд\n";
+    std::cout << Color::cyan << "exit                  " << Color::reset << "— выход из программы\n";
+    std::cout << Color::cyan << "Ctrl+C                " << Color::reset << "- выход из программы\n";
 }
 
 
@@ -357,7 +367,7 @@ void GitCommands::cd(const std::string& rawPath)
 
     if (!fs::exists(path) || !fs::is_directory(path))
     {
-        std::cout << "Директория не найдена: " << path << std::endl;
+        std::cout << Color::red <<"Директория не найдена: " << Color::yellow << path << Color::reset <<std::endl;
         return;
     }
 
@@ -365,15 +375,17 @@ void GitCommands::cd(const std::string& rawPath)
     fs::current_path(workDir_);
     repoPath_ = workDir_ + "/.mygit";
 
-    std::cout << "Текущая директория: " << workDir_ << std::endl;
+    std::cout << Color::green <<"Текущая директория: " << Color::blue << workDir_ << Color::reset << std::endl;
 
     if (fs::exists(repoPath_))
     {
-        std::cout << "Репозиторий найден: " << repoPath_ << std::endl;
+        std::cout << Color::cyan <<"Репозиторий найден: " << Color::blue << repoPath_ << Color::reset << std::endl;
     }
     else
     {
-        std::cout << "Репозиторий не найден. Используйте init для создания." << std::endl;
+        std::cout << Color::yellow << "Репозиторий не создан. "
+            << Color::white << "Используйте " << Color::cyan << "init" << Color::white
+            << " для создания." << Color::reset << std::endl;
     }
 }
 
@@ -384,7 +396,7 @@ void GitCommands::addFile(const std::string& filePath)
     std::ifstream file(filePath, std::ios::binary);
     if (!file)
     {
-        std::cout << "Файл не найден: " << filePath << std::endl;
+        std::cout << Color::red <<"Файл не найден: " << filePath << Color::reset << std::endl;
         return;
     }
 
@@ -406,7 +418,7 @@ void GitCommands::addFile(const std::string& filePath)
     out << serialized;
     out.close();
 
-    std::cout << "Добавлен blob: " << filePath << " -> " << hash << std::endl;
+    std::cout << Color::green <<"Добавлен blob: " << filePath << " -> " << hash << Color::reset << std::endl;
 }
 
 
