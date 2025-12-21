@@ -151,6 +151,7 @@
     <ClCompile Include="src\main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="include\Colours.hpp" />
     <ClInclude Include="include\GitCommands.hpp" />
     <ClInclude Include="include\GitObject.hpp" />
     <ClInclude Include="include\Blob.hpp" />

@@ -126,6 +126,8 @@ void GitCommands::commit(const std::string& message)
         return;
     }
 
+    std::string treeHash = createTree();
+
     std::string parent = "null";
     {
         std::ifstream head(repoPath_ + "/HEAD");
@@ -135,22 +137,24 @@ void GitCommands::commit(const std::string& message)
         }
     }
 
-    std::string data;
-    data += "type=commit\n";
-    data += "author=" + username_ + "\n";
-    data += "message=" + message + "\n";
-    data += "parent=" + parent + "\n";
+    std::stringstream data;
+    data << "type=commit\n";
+    data << "tree=" << treeHash << "\n";
+    data << "parent=" << parent << "\n";
+    data << "author=" << username_ << "\n";
+    data << "message=" << message << "\n";
+    
 
-    std::string hash = Encryption::calculateSHA1(data);
+    std::string commitData = data.str();
+    std::string commitHash = Encryption::calculateSHA1(commitData);
 
-    std::ofstream out(repoPath_ + "/objects/" + hash);
-    out << data;
-    out.close();
+    std::ofstream out(repoPath_ + "/objects/" + commitHash);
+    out << commitData;
 
     std::ofstream head(repoPath_ + "/HEAD");
-    head << hash;
+    head << commitHash;
 
-    std::cout << "Создан коммит: " << hash << std::endl;
+    std::cout << "Создан коммит: " << commitHash << std::endl;
 }
 
 
@@ -166,20 +170,21 @@ void GitCommands::checkout(const std::string& hash)
     }
 
     std::ifstream in(path);
-    std::string type, author, message, parent;
+    std::string type, tree, parent, author, message;
 
     std::getline(in, type);
+    std::getline(in, tree);
+    std::getline(in, parent);
     std::getline(in, author);
     std::getline(in, message);
-    std::getline(in, parent);
+
+    std::string treeHash = tree.substr(tree.find('=') + 1);
+    restoreTree(treeHash);
 
     std::ofstream head(repoPath_ + "/HEAD");
     head << hash;
 
     std::cout << "Переключено на коммит: " << hash << std::endl;
-    std::cout << "  " << author << std::endl;
-    std::cout << "  " << message << std::endl;
-    std::cout << "  " << parent << std::endl;
 }
 
 
@@ -212,31 +217,13 @@ void GitCommands::add(const std::string& filename)
         {
             if (entry.is_regular_file())
             {
-                add(entry.path().string());
+                addFile(entry.path().string());
             }
         }
         return;
     }
 
-
-
-    std::ifstream file(filename, std::ios::binary);
-    if (!file) 
-    {
-        std::cout << "Файл не найден: " << filename << std::endl;
-        return;
-    }
-
-    std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-    Blob blob(content);
-    std::string hash = blob.getHash();
-    std::string path = repoPath_ + "/objects/" + hash;
-
-    std::ofstream out(path, std::ios::binary);
-    out << blob.serialize();
-    out.close();
-
-    std::cout << "Добавлен blob: " << filename << " -> " << hash << std::endl;
+    addFile(filename);
 }
 
 
@@ -392,7 +379,109 @@ void GitCommands::cd(const std::string& rawPath)
 
 
 
-void GitCommands::addFile(const std::string& filename)
+void GitCommands::addFile(const std::string& filePath)
 {
+    std::ifstream file(filePath, std::ios::binary);
+    if (!file)
+    {
+        std::cout << "Файл не найден: " << filePath << std::endl;
+        return;
+    }
 
+    std::string content((std::istreambuf_iterator<char>(file)),
+        std::istreambuf_iterator<char>());
+
+    Blob blob(content);
+    std::string serialized = blob.serialize();
+    std::string hash = Encryption::calculateSHA1(serialized);
+
+    std::string outPath = repoPath_ + "/objects/" + hash;
+
+    if (fs::exists(outPath))
+    {
+        return;
+    }
+
+    std::ofstream out(outPath, std::ios::binary);
+    out << serialized;
+    out.close();
+
+    std::cout << "Добавлен blob: " << filePath << " -> " << hash << std::endl;
+}
+
+
+
+std::string GitCommands::createTree()
+{
+    std::stringstream ss;
+    ss << "type=tree\n";
+
+    for (const auto& entry : fs::recursive_directory_iterator(workDir_))
+    {
+        if (!entry.is_regular_file())
+        {
+            continue;
+        }
+
+        std::string filePath = entry.path().string();
+
+        if (filePath.rfind(repoPath_, 0) == 0)
+        {
+            continue;
+        }
+
+        std::ifstream file(filePath, std::ios::binary);
+        std::string content((std::istreambuf_iterator<char>(file)),
+            std::istreambuf_iterator<char>());
+
+        Blob blob(content);
+        std::string serialized = blob.serialize();
+        std::string hash = Encryption::calculateSHA1(serialized);
+
+        std::string blobPath = repoPath_ + "/objects/" + hash;
+        if (!fs::exists(blobPath))
+        {
+            std::ofstream out(blobPath, std::ios::binary);
+            out << serialized;
+        }
+
+        ss << entry.path().filename().string() << " " << hash << "\n";
+    }
+
+    std::string treeData = ss.str();
+    std::string treeHash = Encryption::calculateSHA1(treeData);
+
+    std::ofstream out(repoPath_ + "/objects/" + treeHash);
+    out << treeData;
+
+    return treeHash;
+}
+
+
+
+void GitCommands::restoreTree(const std::string& treeHash)
+{
+    std::ifstream in(repoPath_ + "/objects/" + treeHash);
+    if (!in)
+        return;
+
+    std::string line;
+    std::getline(in, line); 
+
+    while (std::getline(in, line))
+    {
+        std::istringstream iss(line);
+        std::string filename, hash;
+        iss >> filename >> hash;
+
+        std::ifstream blobFile(repoPath_ + "/objects/" + hash, std::ios::binary);
+        std::string blobData((std::istreambuf_iterator<char>(blobFile)),
+            std::istreambuf_iterator<char>());
+
+        Blob blob;
+        blob.deserialize(blobData);
+
+        std::ofstream out(workDir_ + "/" + filename, std::ios::binary);
+        out << blob.getContent();
+    }
 }

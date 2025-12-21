@@ -26,6 +26,9 @@ public:
     void help();
     void cd(const std::string& path);
     void addFile(const std::string& filename);
+    std::string createTree();
+    void restoreTree(const std::string& treeHash);
+
 
 private:
     std::string repoPath_;
