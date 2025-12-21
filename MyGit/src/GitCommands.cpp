@@ -1,10 +1,11 @@
-#include "../include/GitCommands.hpp"
+ï»¿#include "../include/GitCommands.hpp"
 
 
 #include <filesystem>
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include "../include/Blob.hpp"
 
 
 namespace fs = std::filesystem;
@@ -43,9 +44,23 @@ void GitCommands::runCommand(const std::string& commandLine)
         iss >> hash;
         checkout(hash);
     }
+    else if (cmd == "add") 
+    {
+        std::string filename; 
+        iss >> filename; 
+        add(filename); 
+    }
+    else if (cmd == "status") 
+    {
+        status(); 
+    }
+    else if (cmd == "log") 
+    {
+        log(); 
+    }
     else 
     {
-        std::cout << "Íåèçâåñòíàÿ êîìàíäà: " << cmd << std::endl;
+        std::cout << "ÐÐµÐ¸Ð·Ð²ÐµÑÑ‚Ð½Ð°Ñ ÐºÐ¾Ð¼Ð°Ð½Ð´Ð°: " << cmd << std::endl;
     }
 }
 
@@ -59,9 +74,9 @@ void GitCommands::runCommand(const std::string& commandLine)
 void GitCommands::config(const std::string& username)
 {
     username_ = username;
-    std::cout << "Ïîëüçîâàòåëü óñòàíîâëåí: " << username_ << std::endl;
+    std::cout << "ÐŸÐ¾Ð»ÑŒÐ·Ð¾Ð²Ð°Ñ‚ÐµÐ»ÑŒ ÑƒÑÑ‚Ð°Ð½Ð¾Ð²Ð»ÐµÐ½: " << username_ << std::endl;
 
-    // ñîõðàíÿåì â config ôàéë
+    // ÑÐ¾Ñ…Ñ€Ð°Ð½ÑÐµÐ¼ Ð² config Ñ„Ð°Ð¹Ð»
     fs::create_directories(repoPath_);
     std::ofstream configFile(repoPath_ + "/config.txt");
     configFile << "user=" << username_ << std::endl;
@@ -72,7 +87,7 @@ void GitCommands::config(const std::string& username)
 void GitCommands::init()
 {
     fs::create_directories(repoPath_ + "/objects");
-    std::cout << "Èíèöèàëèçèðîâàíî õðàíèëèùå â " << repoPath_ << std::endl;
+    std::cout << "Ð˜Ð½Ð¸Ñ†Ð¸Ð°Ð»Ð¸Ð·Ð¸Ñ€Ð¾Ð²Ð°Ð½Ð¾ Ñ…Ñ€Ð°Ð½Ð¸Ð»Ð¸Ñ‰Ðµ Ð² " << repoPath_ << std::endl;
 }
 
 
@@ -81,24 +96,113 @@ void GitCommands::commit(const std::string& message)
 {
     if (username_.empty()) 
     {
-        std::cout << "Ñíà÷àëà âûïîëíèòå config <username>" << std::endl;
+        std::cout << "Ð¡Ð½Ð°Ñ‡Ð°Ð»Ð° Ð²Ñ‹Ð¿Ð¾Ð»Ð½Ð¸Ñ‚Ðµ config <username>" << std::endl;
         return;
     }
 
-    // ïðîñòåéøèé êîììèò: ñîõðàíÿåì ñîîáùåíèå â ôàéë
+    // Ð¿Ñ€Ð¾ÑÑ‚ÐµÐ¹ÑˆÐ¸Ð¹ ÐºÐ¾Ð¼Ð¼Ð¸Ñ‚: ÑÐ¾Ñ…Ñ€Ð°Ð½ÑÐµÐ¼ ÑÐ¾Ð¾Ð±Ñ‰ÐµÐ½Ð¸Ðµ Ð² Ñ„Ð°Ð¹Ð»
     std::string commitFile = repoPath_ + "/objects/commit_" + std::to_string(std::time(nullptr)) + ".txt";
     std::ofstream out(commitFile);
     out << "author=" << username_ << "\n";
     out << "message=" << message << "\n";
     out.close();
 
-    std::cout << "Ñîçäàí êîììèò: " << commitFile << std::endl;
+    std::cout << "Ð¡Ð¾Ð·Ð´Ð°Ð½ ÐºÐ¾Ð¼Ð¼Ð¸Ñ‚: " << commitFile << std::endl;
 }
 
 
 
 void GitCommands::checkout(const std::string& hash)
 {
-    // ïîêà ïðîñòî âûâîäèì
-    std::cout << "Ïåðåêëþ÷åíèå íà êîììèò: " << hash << std::endl;
+    std::cout << "ÐŸÐµÑ€ÐµÐºÐ»ÑŽÑ‡ÐµÐ½Ð¸Ðµ Ð½Ð° ÐºÐ¾Ð¼Ð¼Ð¸Ñ‚: " << hash << std::endl;
+}
+
+
+
+
+void GitCommands::add(const std::string& filename)
+{
+    std::ifstream file(filename, std::ios::binary);
+    if (!file) 
+    {
+        std::cout << "Ð¤Ð°Ð¹Ð» Ð½Ðµ Ð½Ð°Ð¹Ð´ÐµÐ½: " << filename << std::endl;
+        return;
+    }
+
+    std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    Blob blob(content);
+    std::string hash = blob.getHash();
+    std::string path = repoPath_ + "/objects/" + hash;
+
+    std::ofstream out(path, std::ios::binary);
+    out << blob.serialize();
+    out.close();
+
+    std::cout << "Ð”Ð¾Ð±Ð°Ð²Ð»ÐµÐ½ blob: " << filename << " â†’ " << hash << std::endl;
+}
+
+
+
+void GitCommands::status()
+{
+    std::cout << "=== Ð¡Ñ‚Ð°Ñ‚ÑƒÑ Ñ€ÐµÐ¿Ð¾Ð·Ð¸Ñ‚Ð¾Ñ€Ð¸Ñ ===" << std::endl;
+
+    std::ifstream config(repoPath_ + "/config.txt");
+    if (config) 
+    {
+        std::string line;
+        std::getline(config, line);
+        std::cout << "ÐŸÐ¾Ð»ÑŒÐ·Ð¾Ð²Ð°Ñ‚ÐµÐ»ÑŒ: " << line << std::endl;
+    }
+    else 
+    {
+        std::cout << "ÐÐµÑ‚ ÐºÐ¾Ð½Ñ„Ð¸Ð³ÑƒÑ€Ð°Ñ†Ð¸Ð¸ Ð¿Ð¾Ð»ÑŒÐ·Ð¾Ð²Ð°Ñ‚ÐµÐ»Ñ.\n";
+    }
+
+    size_t count = 0;
+    for (const auto& entry : fs::directory_iterator(repoPath_ + "/objects"))
+        ++count;
+
+    std::cout << "ÐžÐ±ÑŠÐµÐºÑ‚Ð¾Ð² Ð² Ñ…Ñ€Ð°Ð½Ð¸Ð»Ð¸Ñ‰Ðµ: " << count << std::endl;
+
+    std::ifstream head(repoPath_ + "/HEAD");
+    if (head) 
+    {
+        std::string last;
+        std::getline(head, last);
+        std::cout << "ÐŸÐ¾ÑÐ»ÐµÐ´Ð½Ð¸Ð¹ ÐºÐ¾Ð¼Ð¼Ð¸Ñ‚: " << last << std::endl;
+    }
+    else 
+    {
+        std::cout << "ÐÐµÑ‚ ÐºÐ¾Ð¼Ð¼Ð¸Ñ‚Ð¾Ð².\n";
+    }
+
+}
+
+
+
+void GitCommands::log()
+{
+    std::cout << "=== Ð˜ÑÑ‚Ð¾Ñ€Ð¸Ñ ÐºÐ¾Ð¼Ð¼Ð¸Ñ‚Ð¾Ð² ===" << std::endl;
+
+    for (const auto& entry : fs::directory_iterator(repoPath_ + "/objects"))
+    {
+        if (!entry.is_regular_file())
+        {
+            continue;
+        }
+        std::string name = entry.path().filename().string();
+        if (name.find("commit_") != 0)
+        {
+            continue;
+        }
+
+        std::ifstream in(entry.path());
+        std::string author, message;
+        std::getline(in, author);
+        std::getline(in, message);
+
+        std::cout << name << "\n  " << author << "\n  " << message << "\n\n";
+    }
+
 }

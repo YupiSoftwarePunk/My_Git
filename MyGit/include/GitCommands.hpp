@@ -20,6 +20,9 @@ public:
     void init();
     void commit(const std::string& message);
     void checkout(const std::string& hash);
+    void add(const std::string& filename);
+    void status();
+    void log();
 
 private:
     std::string repoPath_;
