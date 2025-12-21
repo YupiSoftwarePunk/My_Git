@@ -6,6 +6,7 @@
 #include <fstream>
 #include <sstream>
 #include "../include/Blob.hpp"
+#include "../include/Encryption.hpp"
 
 
 namespace fs = std::filesystem;
@@ -48,7 +49,14 @@ void GitCommands::runCommand(const std::string& commandLine)
     {
         std::string filename; 
         iss >> filename; 
-        add(filename); 
+        if (filename == "." || filename == "--all")
+        {
+            add(".");
+        }
+        else
+        {
+            add(filename);
+        }
     }
     else if (cmd == "status") 
     {
@@ -57,6 +65,10 @@ void GitCommands::runCommand(const std::string& commandLine)
     else if (cmd == "log") 
     {
         log(); 
+    }
+    else if (cmd == "help")
+    {
+        help();
     }
     else 
     {
@@ -87,6 +99,9 @@ void GitCommands::config(const std::string& username)
 void GitCommands::init()
 {
     fs::create_directories(repoPath_ + "/objects");
+
+    std::ofstream head(repoPath_ + "/HEAD"); head << "null";
+
     std::cout << "Инициализировано хранилище в " << repoPath_ << std::endl;
 }
 
@@ -100,21 +115,60 @@ void GitCommands::commit(const std::string& message)
         return;
     }
 
-    // простейший коммит: сохраняем сообщение в файл
-    std::string commitFile = repoPath_ + "/objects/commit_" + std::to_string(std::time(nullptr)) + ".txt";
-    std::ofstream out(commitFile);
-    out << "author=" << username_ << "\n";
-    out << "message=" << message << "\n";
+    std::string parent = "null";
+    {
+        std::ifstream head(repoPath_ + "/HEAD");
+        if (head)
+        {
+            std::getline(head, parent);
+        }
+    }
+
+    std::string data;
+    data += "type=commit\n";
+    data += "author=" + username_ + "\n";
+    data += "message=" + message + "\n";
+    data += "parent=" + parent + "\n";
+
+    std::string hash = Encryption::calculateSHA1(data);
+
+    std::ofstream out(repoPath_ + "/objects/" + hash);
+    out << data;
     out.close();
 
-    std::cout << "Создан коммит: " << commitFile << std::endl;
+    std::ofstream head(repoPath_ + "/HEAD");
+    head << hash;
+
+    std::cout << "Создан коммит: " << hash << std::endl;
 }
 
 
 
 void GitCommands::checkout(const std::string& hash)
 {
-    std::cout << "Переключение на коммит: " << hash << std::endl;
+    std::string path = repoPath_ + "/objects/" + hash;
+
+    if (!fs::exists(path)) 
+    {
+        std::cout << "Коммит не найден: " << hash << std::endl;
+        return;
+    }
+
+    std::ifstream in(path);
+    std::string type, author, message, parent;
+
+    std::getline(in, type);
+    std::getline(in, author);
+    std::getline(in, message);
+    std::getline(in, parent);
+
+    std::ofstream head(repoPath_ + "/HEAD");
+    head << hash;
+
+    std::cout << "Переключено на коммит: " << hash << std::endl;
+    std::cout << "  " << author << std::endl;
+    std::cout << "  " << message << std::endl;
+    std::cout << "  " << parent << std::endl;
 }
 
 
@@ -122,6 +176,40 @@ void GitCommands::checkout(const std::string& hash)
 
 void GitCommands::add(const std::string& filename)
 {
+    if (filename == ".")
+    {
+        for (const auto& entry : fs::recursive_directory_iterator("."))
+        {
+            if (entry.is_regular_file())
+            {
+                std::string path = entry.path().string();
+
+                if (path.rfind(repoPath_, 0) == 0)
+                {
+                    continue;
+                }
+
+                add(path);
+            }
+        }
+        return;
+    }
+
+    // Если это папка — рекурсивно добавляем всё внутри
+    if (fs::is_directory(filename))
+    {
+        for (const auto& entry : fs::recursive_directory_iterator(filename))
+        {
+            if (entry.is_regular_file())
+            {
+                add(entry.path().string());
+            }
+        }
+        return;
+    }
+
+
+
     std::ifstream file(filename, std::ios::binary);
     if (!file) 
     {
@@ -145,8 +233,6 @@ void GitCommands::add(const std::string& filename)
 
 void GitCommands::status()
 {
-    std::cout << "=== Статус репозитория ===" << std::endl;
-
     std::ifstream config(repoPath_ + "/config.txt");
     if (config) 
     {
@@ -159,50 +245,85 @@ void GitCommands::status()
         std::cout << "Нет конфигурации пользователя.\n";
     }
 
-    size_t count = 0;
-    for (const auto& entry : fs::directory_iterator(repoPath_ + "/objects"))
-        ++count;
-
-    std::cout << "Объектов в хранилище: " << count << std::endl;
-
     std::ifstream head(repoPath_ + "/HEAD");
-    if (head) 
+    if (head)
     {
         std::string last;
         std::getline(head, last);
-        std::cout << "Последний коммит: " << last << std::endl;
+        std::cout << "HEAD → " << last << std::endl;
     }
     else 
     {
-        std::cout << "Нет коммитов.\n";
+        std::cout << "HEAD отсутствует\n";
     }
 
+    size_t count = 0;
+    for (const auto& entry : fs::directory_iterator(repoPath_ + "/objects"))
+    {
+        ++count;
+    }
+
+    std::cout << "Объектов в хранилище: " << count << std::endl;
 }
 
 
 
 void GitCommands::log()
 {
-    std::cout << "=== История коммитов ===" << std::endl;
-
-    for (const auto& entry : fs::directory_iterator(repoPath_ + "/objects"))
+    std::ifstream head(repoPath_ + "/HEAD");
+    if (!head) 
     {
-        if (!entry.is_regular_file())
-        {
-            continue;
-        }
-        std::string name = entry.path().filename().string();
-        if (name.find("commit_") != 0)
-        {
-            continue;
-        }
-
-        std::ifstream in(entry.path());
-        std::string author, message;
-        std::getline(in, author);
-        std::getline(in, message);
-
-        std::cout << name << "\n  " << author << "\n  " << message << "\n\n";
+        std::cout << "Нет HEAD файла" << std::endl;
+        return;
     }
 
+    std::string current;
+    std::getline(head, current);
+
+    if (current == "null") 
+    {
+        std::cout << "Нет коммитов" << std::endl;
+        return;
+    }
+
+    while (current != "null")
+    {
+        std::string path = repoPath_ + "/objects/" + current;
+        if (!fs::exists(path)) 
+        {
+            break;
+        }
+
+        std::ifstream in(path);
+        std::string type, author, message, parent;
+
+        std::getline(in, type);
+        std::getline(in, author);
+        std::getline(in, message);
+        std::getline(in, parent);
+
+        std::cout << current << "\n  " << author << "\n  " << message << "\n\n";
+
+        parent = parent.substr(parent.find('=') + 1);
+        current = parent;
+    }
+}
+
+
+
+void GitCommands::help()
+{
+    std::cout << "\t\tДоступные команды MyGit\n";
+    std::cout << "config <username>     — установить имя пользователя\n";
+    std::cout << "init                  — инициализировать репозиторий\n";
+    std::cout << "add <file>            — добавить файл в blob\n";
+    std::cout << "add .                 — добавить все файлы\n";
+    std::cout << "add --all             — добавить все файлы\n";
+    std::cout << "commit <message>      — создать коммит\n";
+    std::cout << "checkout <hash>       — переключиться на коммит\n";
+    std::cout << "status                — статус репозитория\n";
+    std::cout << "log                   — история коммитов\n";
+    std::cout << "help                  — список команд\n";
+    std::cout << "exit                  — выход из программы\n";
+    std::cout << "Ctrl+C                - выход из программы\n";
 }

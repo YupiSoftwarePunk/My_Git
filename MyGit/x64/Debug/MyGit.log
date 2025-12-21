@@ -1,6 +1,2 @@
 ﻿  The vcpkg manifest was disabled, but we found a manifest file in C:\Users\Denis\Documents\projects C++\MyGit\. You may want to enable vcpkg manifests in your properties page or pass /p:VcpkgEnableManifest=true to the msbuild invocation.
-  GitCommands.cpp
-C:\Users\Denis\Documents\projects C++\MyGit\MyGit\src\GitCommands.cpp(141,59): warning C4566: символ, представленный универсальным именем символа "\u2192", невозможно представить в текущей кодовой странице (1251)
-  main.cpp
-  Создание кода...
   MyGit.vcxproj -> C:\Users\Denis\Documents\projects C++\MyGit\x64\Debug\MyGit.exe

@@ -23,6 +23,7 @@ public:
     void add(const std::string& filename);
     void status();
     void log();
+    void help();
 
 private:
     std::string repoPath_;
