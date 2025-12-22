@@ -148,6 +148,19 @@ void GitCommands::commit(const std::string& message)
     std::string commitData = data.str();
     std::string commitHash = Encryption::calculateSHA1(commitData);
 
+    std::ifstream headFile(repoPath_ + "/HEAD");
+    std::string currentHead;
+    if (headFile)
+    {
+        std::getline(headFile, currentHead);
+    }
+
+    if (commitHash == currentHead)
+    {
+        std::cout << Color::yellow << "Нет изменений для коммита." << Color::reset << std::endl;
+        return;
+    }
+
     std::ofstream out(repoPath_ + "/objects/" + commitHash);
     out << commitData;
 
@@ -157,7 +170,6 @@ void GitCommands::commit(const std::string& message)
     std::cout << Color::green << "Создан коммит: "
         << Color::magenta << commitHash
         << Color::reset << "\n";
-
 }
 
 
@@ -190,7 +202,6 @@ void GitCommands::checkout(const std::string& hash)
     std::cout << Color::yellow << "Переключено на коммит: "
         << Color::magenta << hash
         << Color::reset << "\n";
-
 }
 
 
@@ -313,12 +324,14 @@ void GitCommands::log()
         }
 
         std::ifstream in(path);
-        std::string type, author, message, parent;
+        std::string type, tree, parent, author, message;
 
-        std::getline(in, type);
-        std::getline(in, author);
-        std::getline(in, message);
-        std::getline(in, parent);
+        std::getline(in, type);   
+        std::getline(in, tree);    
+        std::getline(in, parent);  
+        std::getline(in, author); 
+        std::getline(in, message); 
+
 
         std::cout << Color::magenta << current << Color::reset << "\n";
         std::cout << Color::cyan << " " << author << Color::reset << "\n";
@@ -334,15 +347,15 @@ void GitCommands::log()
 void GitCommands::help()
 {
     std::cout << Color::bold << "\t\tДоступные команды MyGit\n" << Color::reset;
-    std::cout << Color::cyan << "cd <path>             "<< Color::reset << "— перейти в директорию\n";
     std::cout << Color::cyan << "config <username>     " << Color::reset << "— установить имя пользователя\n";
+    std::cout << Color::cyan << "cd <path>             "<< Color::reset << "— перейти в директорию\n";
     std::cout << Color::cyan << "init                  " << Color::reset << "— инициализировать репозиторий\n";
+    std::cout << Color::cyan << "status                " << Color::reset << "— статус репозитория\n";
     std::cout << Color::cyan << "add <file>            " << Color::reset << "— добавить файл в blob\n";
     std::cout << Color::cyan << "add .                 " << Color::reset << "— добавить все файлы\n";
     std::cout << Color::cyan << "add --all             " << Color::reset << "— добавить все файлы\n";
     std::cout << Color::cyan << "commit <message>      " << Color::reset << "— создать коммит\n";
     std::cout << Color::cyan << "checkout <hash>       " << Color::reset << "— переключиться на коммит\n";
-    std::cout << Color::cyan << "status                " << Color::reset << "— статус репозитория\n";
     std::cout << Color::cyan << "log                   " << Color::reset << "— история коммитов\n";
     std::cout << Color::cyan << "help                  " << Color::reset << "— список команд\n";
     std::cout << Color::cyan << "exit                  " << Color::reset << "— выход из программы\n";
@@ -428,8 +441,13 @@ std::string GitCommands::createTree()
     std::stringstream ss;
     ss << "type=tree\n";
 
-    for (const auto& entry : fs::recursive_directory_iterator(workDir_))
+    for (auto& entry : fs::recursive_directory_iterator(workDir_))
     {
+        if (entry.is_directory() && entry.path().filename() == ".mygit") 
+        {
+            continue;
+        }
+
         if (!entry.is_regular_file())
         {
             continue;
@@ -437,7 +455,7 @@ std::string GitCommands::createTree()
 
         std::string filePath = entry.path().string();
 
-        if (filePath.rfind(repoPath_, 0) == 0)
+        if (filePath.rfind(".mygit") != std::string::npos)
         {
             continue;
         }
