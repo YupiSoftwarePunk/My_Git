@@ -14,4 +14,9 @@ void Blob::deserialize(const std::string& data)
     {
         content_ = data.substr(pos + 1);
     }
+    else
+    {
+        content_.clear(); 
+        return;
+    }
 }

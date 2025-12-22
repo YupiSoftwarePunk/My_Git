@@ -475,7 +475,7 @@ std::string GitCommands::createTree()
             out << serialized;
         }
 
-        ss << entry.path().filename().string() << " " << hash << "\n";
+        ss << fs::relative(entry.path(), workDir_).string() << " " << hash << "\n";
     }
 
     std::string treeData = ss.str();
@@ -493,25 +493,104 @@ void GitCommands::restoreTree(const std::string& treeHash)
 {
     std::ifstream in(repoPath_ + "/objects/" + treeHash);
     if (!in)
+    {
+        std::cout << Color::red << "Ошибка: tree-объект не найден: " 
+            << Color::magenta << treeHash << Color::reset << std::endl;
         return;
+    }
+
+    std::vector<fs::path> toRemove;
+    for (auto it = fs::recursive_directory_iterator(workDir_);
+        it != fs::recursive_directory_iterator(); ++it)
+    {
+        const fs::path& p = it->path();
+
+        if (p.string().find(".mygit") != std::string::npos)
+            continue;
+
+        toRemove.push_back(p);
+    }
+
+    std::sort(toRemove.begin(), toRemove.end(),
+        [](const fs::path& a, const fs::path& b)
+        {
+            return std::distance(a.begin(), a.end()) >
+                std::distance(b.begin(), b.end());
+        });
+
+    for (const auto& p : toRemove)
+    {
+        std::error_code ec;
+        fs::remove_all(p, ec);
+        if (ec)
+        {
+            std::cout << Color::yellow << "Предупреждение: не удалось удалить "
+                << Color::blue << p.string()
+                << Color::yellow << ": " << ec.message()
+                << Color::reset << std::endl;
+        }
+    }
 
     std::string line;
-    std::getline(in, line); 
+    if (!std::getline(in, line))
+        return;
 
     while (std::getline(in, line))
     {
-        std::istringstream iss(line);
-        std::string filename, hash;
-        iss >> filename >> hash;
+        if (line.empty())
+            continue;
 
-        std::ifstream blobFile(repoPath_ + "/objects/" + hash, std::ios::binary);
+        std::istringstream iss(line);
+        std::string relPathStr;
+        std::string hash;
+
+        if (!(iss >> relPathStr >> hash))
+            continue;
+
+        fs::path relPath = relPathStr;
+        fs::path fullPath = fs::path(workDir_) / relPath;
+
+        std::ifstream blobFile(repoPath_ + "/objects/" + hash,
+            std::ios::binary);
+        if (!blobFile)
+        {
+            std::cout << Color::red << "Ошибка: blob-файл не найден: "
+                << Color::magenta << hash << Color::reset << std::endl;
+            continue;
+        }
+
         std::string blobData((std::istreambuf_iterator<char>(blobFile)),
             std::istreambuf_iterator<char>());
+        if (blobData.empty())
+        {
+            std::cout << Color::red << "Ошибка: blob-файл пустой: "
+                << Color::magenta << hash << Color::reset << std::endl;
+            continue;
+        }
 
         Blob blob;
         blob.deserialize(blobData);
 
-        std::ofstream out(workDir_ + "/" + filename, std::ios::binary);
+        std::error_code ec;
+        fs::create_directories(fullPath.parent_path(), ec);
+        if (ec)
+        {
+            std::cout << Color::red << "Ошибка: не удалось создать директорию: "
+                << Color::blue << fullPath.parent_path().string()
+                << Color::red << " : " << ec.message()
+                << Color::reset << std::endl;
+            continue;
+        }
+
+        std::ofstream out(fullPath, std::ios::binary);
+        if (!out)
+        {
+            std::cout << Color::red << "Ошибка: не удалось открыть файл для записи: "
+                << Color::blue << fullPath.string()
+                << Color::reset << std::endl;
+            continue;
+        }
+
         out << blob.getContent();
     }
 }
